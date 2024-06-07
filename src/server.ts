@@ -20,6 +20,20 @@ app.get('/movies', async (_req, res) => {
   res.json(movies); 
 });
 
+app.get('/movies/:id', async (_req, res) => {
+  const { id } = _req.params;
+  const movie = await prisma.movie.findUnique({
+    where: {
+      id: Number(id)
+    },
+    include: {
+      languages: true,
+      genres: true,
+    }
+  });
+  res.json(movie);
+})
+
 app.post('/movies', async (req, res) => {
   const {
     title,
@@ -30,6 +44,19 @@ app.post('/movies', async (req, res) => {
   } = req.body; 
 
   try{
+    const moviesWithSameTitle = await prisma.movie.findFirst({
+      where: { 
+        // title - Se passar somente a propriedade ele não vai diferenciar letras maiúsculas de minusculas 
+        title: { equals: title, mode: 'insensitive' }
+      }
+    })
+
+    if(moviesWithSameTitle){
+      return res.status(409).send(
+        {message: 'Já existe um filme com esse título'}
+      )
+    }
+  
     await prisma.movie.create({
       data: {
         title,
@@ -39,11 +66,62 @@ app.post('/movies', async (req, res) => {
         release_date: new Date(release_date)
       }
     })
+    res.status(201).send({message: 'Filme cadastrado com sucesso'})
   } catch(err){
     return res.status(500).send({message: 'Falha ao cadastrar um filme'})
   }
   res.status(201).send()
+  
 });
+
+app.put('/movies/:id', async (req, res ) => {
+  const id = Number(req.params.id);
+  const data = { ...req.body };
+  data.release_date = data.release_date 
+    ? new Date(data.release_date) : undefined;
+
+  try {
+    const movie = await prisma.movie.findUnique({
+    where: {
+      id
+    }
+    })
+
+    if(!movie) return res.status(404).send({message: 'Filme não encontrado!'});
+  
+    await prisma.movie.update({
+      where: { 
+        id
+      },
+      data
+    })  
+    res.status(200).send({message: 'Campos atuializado com sucesso'})
+  } catch (err) {
+    console.log(err);
+    res.status(404).send({message:'Falha ao atualizar os campos da tabela'});
+  }
+
+})
+
+app.delete('/movies/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    const movie = await prisma.movie.findUnique({
+      where: { id }
+    })
+
+    if(!movie) return res.status(404).send({message: 'Filme não encontrado!'}); 
+
+    await prisma.movie.delete({
+      where: { id }
+    })
+
+    res.status(200).send({message: 'Filme excluido com sucesso'});
+  } catch (err) {
+    console.log(err);
+    res.status(404).send({message:'Falha ao excluir o filme'});
+  }  
+})
 
 app.listen(port, () => {
   console.log(`Server running on port http://localhost:${port}`);
