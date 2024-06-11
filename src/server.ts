@@ -23,7 +23,7 @@ app.get('/movies', async (_req, res) => {
   res.json(movies); 
 });
 
-app.get('/movies/:id', async (_req, res) => {
+app.get('/movies/movie/:id', async (_req, res) => {
   const { id } = _req.params;
   const movie = await prisma.movie.findUnique({
     where: {
@@ -34,6 +34,7 @@ app.get('/movies/:id', async (_req, res) => {
       genres: true,
     }
   });
+  if ( !movie ) return res.status(404).send({ message: "Filme não encontrado"})
   res.json(movie);
 })
 
@@ -124,10 +125,12 @@ app.delete('/movies/:id', async (req, res) => {
     console.log(err);
     res.status(404).send({message:'Falha ao excluir o filme'});
   }  
-})
+});
 
-app.get('movies/:genreName', async (req, res) => {
+app.get('/movies/genre/:genreName', async (req, res) => {
+  console.log('Batata')
   const genreParams = req.params.genreName;
+  console.log(genreParams)
   try{
     const filteredByGenres = await prisma.movie.findMany({
       include: {
