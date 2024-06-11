@@ -128,9 +128,7 @@ app.delete('/movies/:id', async (req, res) => {
 });
 
 app.get('/movies/genre/:genreName', async (req, res) => {
-  console.log('Batata')
   const genreParams = req.params.genreName;
-  console.log(genreParams)
   try{
     const filteredByGenres = await prisma.movie.findMany({
       include: {
