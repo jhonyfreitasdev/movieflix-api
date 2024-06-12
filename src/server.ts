@@ -11,19 +11,27 @@ app.use(express.json());
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.get('/movies', async (_req, res) => {
-  const movies = await prisma.movie.findMany({
-    orderBy: { 
-      title: "asc" 
-    },
-    include: {
-      languages: true,
-      genres: true,
-    }
-  });
-  res.json(movies); 
+  try {
+    const movies = await prisma.movie.findMany({
+      orderBy: { 
+        title: "asc" 
+      },
+      include: {
+        languages: true,
+        genres: true,
+      }
+    });
+  
+    const totalMovies = movies.length;
+    const averageDuration = movies.reduce((acc, cur) => acc + (cur.duration || 0), 0) / totalMovies;
+    res.json({ totalMovies, averageDuration, movies}); 
+  } catch (err) {
+    console.log(err);
+    return res.status(500).send({ message: "Ocorreu um erro ao buscar os filmes" });
+  }
 });
 
-app.get('/movies/movie/:id', async (_req, res) => {
+app.get('/movies/:id', async (_req, res) => {
   const { id } = _req.params;
   const movie = await prisma.movie.findUnique({
     where: {
@@ -127,7 +135,7 @@ app.delete('/movies/:id', async (req, res) => {
   }  
 });
 
-app.get('/movies/genre/:genreName', async (req, res) => {
+app.get('/movies/genres/:genreName', async (req, res) => {
   const genreParams = req.params.genreName;
   try{
     const filteredByGenres = await prisma.movie.findMany({
@@ -150,6 +158,119 @@ app.get('/movies/genre/:genreName', async (req, res) => {
     console.log(err);
     res.status(500).send({message:'Falha ao filtrar filmes por gênero'});
   }
+});
+
+app.put('/genres/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const { name } = req.body; 
+  
+  const genre = await prisma.genre.findUnique({
+    where: {
+      id
+    }
+  })
+  if (!genre) return res.status(404).send({message: 'Gênero não encontrado!'});
+  
+
+  try {
+    if (!name) return res.status(400).send({message: 'O nome do gênero é obrigatório'});
+
+    const genreAlreadyExist = await prisma.genre.findFirst({
+      where: {
+        name: {
+          equals: name,
+          mode: 'insensitive'
+        }
+      }
+    })
+
+    if(genreAlreadyExist) return res.status(409).send({message: 'O Gênero informado já existe'})
+
+    const genreUpdate = await prisma.genre.update({
+      where: {
+        id
+      }, 
+      data: {
+        name
+      }
+    })
+
+    res.status(200).send(genreUpdate);
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({message:'Falha ao atualizar o gênero do filme'});
+  }
+});
+
+app.post('/genres', async (req, res) => {
+  const { name } = req.body;
+
+  if (!name) return res.status(400).send({message: 'Nome do gênero não informado'});
+
+  try {
+    const genreAlreadyExist = await prisma.genre.findFirst({
+      where: {
+        name: {
+          equals: name,
+          mode: 'insensitive'
+        }
+      }
+    })
+
+    if(genreAlreadyExist) return res.status(409).send({message: 'O Gênero informado já existe'})
+
+    const genreCreated = await prisma.genre.create({
+      data: {
+        name
+      }
+    })
+    
+    res.status(201).send(genreCreated);
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({message:'Falha ao cadastrar um novo gênero'});
+  }
+  //verificar se já existe gênero com esse nome 
+  // Criar Gênero novo
+
+});
+
+app.get('/genres', async (_req, res) => {
+  try{
+    const genres = await prisma.genre.findMany({
+      orderBy: {
+        name: 'asc'
+      }
+    })
+    res.status(200).send(genres);
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({message:'Falha ao listar os gêneros'});
+  }
+});
+
+app.delete('/genres/:id', async (req, res) => {
+  const id = Number(req.params.id);
+
+  try{
+    const genre = await prisma.genre.findUnique({
+      where: {
+        id
+      }
+    })
+    if(!genre) return res.status(404).send({message: 'Gênero não encontrado!'});
+
+    await prisma.genre.delete({
+      where: {
+        id
+      }
+    })
+    res.status(200).send({message: 'Gênero excluido com sucesso'});
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({message:'Falha ao excluir o gênero'});
+  };
 });
 
 app.listen(port, () => {
