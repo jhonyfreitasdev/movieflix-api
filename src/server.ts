@@ -10,12 +10,35 @@ const app = express();
 app.use(express.json());
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-app.get('/movies', async (_req, res) => {
+app.get('/movies', async (req, res) => {
+  const language_id = Number(req.query.language);
+  const sort = req.query.sort
+
+  let where = {};
+  if (language_id){
+    const language = await prisma.language.findUnique({
+      where: {
+        id: language_id,
+      }
+    });
+
+    if (!language) return res.status(404).json({ message: 'idioma do filme não econtrado' }) 
+    where = { language_id };
+  };
+
+  const validSortParams = ['title', 'release_date', 'duration'];
+  let sortParams: string = 'title';
+
+  if (typeof sort === 'string' && validSortParams.includes(sort)) {
+    sortParams = sort;
+  }
+  let orderBy: { [key: string]: 'asc' | 'dec' } = {};
+  orderBy[sortParams] = 'asc'
+
   try {
     const movies = await prisma.movie.findMany({
-      orderBy: { 
-        title: "asc" 
-      },
+      where,
+      orderBy,
       include: {
         languages: true,
         genres: true,
@@ -30,21 +53,6 @@ app.get('/movies', async (_req, res) => {
     return res.status(500).send({ message: "Ocorreu um erro ao buscar os filmes" });
   }
 });
-
-app.get('/movies/:id', async (_req, res) => {
-  const { id } = _req.params;
-  const movie = await prisma.movie.findUnique({
-    where: {
-      id: Number(id)
-    },
-    include: {
-      languages: true,
-      genres: true,
-    }
-  });
-  if ( !movie ) return res.status(404).send({ message: "Filme não encontrado"})
-  res.json(movie);
-})
 
 app.post('/movies', async (req, res) => {
   const {
